@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-import datetime
+import datetime, json, decimal, pprint
 
 def getrecorddate(datetimeobj=None):
     """
@@ -16,14 +16,20 @@ def fromrecorddate(recorddate):
     return datetime.datetime.strptime(recorddate, r'%y-%m-%d')
 
 class Project:
-    def __init__(self):
-        self.time = 0
+    def __init__(self, title):
+        self.title = title
+        self.time = decimal.Decimal()
         self.records = dict()
+
         self.url = ''
         self.path = ''
         self.archive = ''
         self.datamap = 1
         self.notes = ''
+    def __iter__(self):
+        return ProjectIterable(self)
+    def __str__(self):
+        return pprint.pformat(self.records)
 
     def add(self, hours, date=None):
         """
@@ -31,7 +37,10 @@ class Project:
         """
         if date is None:
             date = getrecorddate()
-        self.records[date] += hours
+        if 'date' in self.records:
+            self.records[date] += hours
+        else:
+            self.records[date] = decimal.Decimal(hours)
         self.time += hours
 
     def remove(self, hours, date=None):
@@ -48,18 +57,35 @@ class Project:
         time = 0
         for record in self.records:
              if fromrecorddate(record) > date:
-                 time += self.record[record]
+                 time += self.records[record]
         return time
 
-class ProjectList:
+class ProjectIterable:
+    def __init__(self, project):
+        self.iterable = list(project.records.items())
+        self.index = 0
+    def __next__(self):
+        try:
+            result = self.iterable[self.index]
+        except IndexError:
+            raise StopIteration
+        self.index += 1
+        return result
+
+class ProjectSheet:
     def __init__(self):
         self.sheet = dict()
+        self.index = 0
+    def __iter__(self):
+        return ProjectSheetIterable(self)
+    def __str__(self):
+        return '\n'.join([str(r) for r in self])
 
     def create(self, name):
         """
         Add a project under name to the sheet.
         """
-        self.sheet[name] = Project()
+        self.sheet[name] = Project(name)
 
     def delete(self, name):
         """
@@ -86,25 +112,51 @@ class ProjectList:
         """
         with open(filename, 'r') as f:
             j = json.load(f)
-        for project in j:
+        for project in j.keys():
             self.create(project)
+            for attr in ('notes','url','path','archive','datamap'):
+                if attr in j[project]:
+                    setattr(self.sheet[project], attr, j[project][attr])
+                    j[project].pop(attr)
             for date in j[project]:
+                hours = decimal.Decimal(j[project][date])
                 self.sheet[project].add(hours, date)
+        return self
+
+    def tojson(self):
+        """
+        Converts the sheet to a JSON-compatible object.
+        """
+        j = dict()
+        for project in self:
+            j[project.title] = dict()
+            for attr in ('notes','url','path','archive','datamap'):
+                j[project.title][attr] = getattr(project, attr)
+            for date,hours in project:
+                j[project.title][date] = str(hours)
+        return j
 
     def writejson(self, filename):
         """
         Exports projects and records to a JSON file.
         """
-        j = dict()
-        for project in self.sheet:
-            j[project] = dict()
-            for date in self.sheet[project]:
-                j[project][record] = self.sheet[project].records[date]
         with open(filename, 'w') as f:
-            json.write(f, j)
+            json.dump(self.tojson(), f, sort_keys=True)
+
+class ProjectSheetIterable:
+    def __init__(self, projectsheet):
+        self.iterable = list(projectsheet.sheet.items())
+        self.index = 0
+    def __next__(self):
+        try:
+            key, value = self.iterable[self.index]
+        except IndexError:
+            raise StopIteration
+        self.index += 1
+        return value
 
 if __name__ == '__main__':
-    P = ProjectList().fromjson(r'C:\Users\DominicRicottone\Documents\ProjectList.json')
+    P = ProjectSheet().readjson('work.json')
     lastweek = datetime.datetime.today() - datetime.timedelta(days=7)
-    print('This past week you have worked ', str(P.since(lastweek)[0]), ' hours!')
+    print('This past week you have worked', str(P.since(lastweek)[0]), 'hours!')
 

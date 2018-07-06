@@ -1,0 +1,6 @@
+# my test files
+test.*
+# python compilation
+__pycache__/*
+# my own project tracking
+work.*
