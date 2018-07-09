@@ -1,0 +1,26 @@
+#!/bin/bash
+
+TRACKER_HELP() {
+  echo "tracker CMND ARGS"
+  echo "Available commands are:"
+  echo "  help    -> Display this text"
+  echo "  display -> Display the week"
+  echo "             Takes one argument for how many weeks ago (defaults to 0)"
+  echo "  create  -> Create a project"
+  echo "             Takes one argument for the project name"
+  echo "  add     -> Add time to a project"
+  echo "             Takes three arguments: The project name, how many hours, and what date (defaults to today)"
+  echo "  remove  -> Remove time from a project"
+  echo "             Takes three arguments: The project name, how many hours, and what date (defaults to today)"
+}
+
+TRACKER_DI
+
+case $1 in
+  h?(elp    ) HELP;;
+  d?(isplay ) DISPLAY $2;;
+  c?(reate  ) CREATE $2;;
+  a?(dd     ) ADD $2 $3 ${4:-0}
+  r?(emove  ) REMOVE $2 $3 ${4:-0}
+esac
+  

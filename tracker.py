@@ -1,5 +1,13 @@
 #!/usr/bin/python3
 import datetime, json, decimal, pprint
+import colorutils, dateutils
+
+COLWIDTH = 10
+FILL = ' ' * COLWIDTH
+
+# ^ Constants
+###############################################################################
+# v Functions
 
 def getrecorddate(datetimeobj=None):
     """
@@ -15,7 +23,16 @@ def fromrecorddate(recorddate):
     """
     return datetime.datetime.strptime(recorddate, r'%y-%m-%d')
 
+# ^ Functions
+###############################################################################
+# v Classes
+
 class Project:
+    """
+    Class for a project. Contains all component data as attributes.
+
+    Is iterable over tuples of (date, hours) pairs.
+    """
     def __init__(self, title):
         self.title = title
         self.time = decimal.Decimal()
@@ -61,6 +78,9 @@ class Project:
         return time
 
 class ProjectIterable:
+    """
+    Implementation of iteration for the Project class.
+    """
     def __init__(self, project):
         self.iterable = list(project.records.items())
         self.index = 0
@@ -73,6 +93,9 @@ class ProjectIterable:
         return result
 
 class ProjectSheet:
+    """
+    Container for projects. Offers methods for operating on all projects.
+    """
     def __init__(self):
         self.sheet = dict()
         self.index = 0
@@ -144,8 +167,12 @@ class ProjectSheet:
             json.dump(self.tojson(), f, sort_keys=True)
 
 class ProjectSheetIterable:
+    """
+    Implementation of iteration for the ProjectSheet class.
+    """
     def __init__(self, projectsheet):
-        self.iterable = list(projectsheet.sheet.items())
+        self.iterable = sorted(list(projectsheet.sheet.items()),
+                               key=lambda x: x[1].title)
         self.index = 0
     def __next__(self):
         try:
@@ -155,8 +182,68 @@ class ProjectSheetIterable:
         self.index += 1
         return value
 
+class ProjectSheetScreen:
+    """
+    Class for building up a printable sheet.
+    """
+    def __init__(self, projectsheet, refdate):
+        self.week = dateutils.getweek(refdate)
+        self.blocks = list()
+        self.source = projectsheet
+        self.colors = colorutils.highlighter(colorutils.HIAA_BACK_BLACKFORE)
+    def __str__(self):
+        return 'The week starting on {} {}:'.format( \
+            dateutils.MONTHS_SHORT[self.week[0].month], self.week[0].day)
+
+    def build(self):
+        self.blocks = list()
+        for date in self.week:
+            date = getrecorddate(date)
+            self.blocks.append( self.buildblock(date) )
+        buffer = ''.join(d.ljust(COLWIDTH) for d in dateutils.WEEKDAYS) + '\n'
+        for line in zip(*self.blocks):
+            buffer = ''.join([buffer, ''.join(line), '\n'])
+        return buffer
+
+    def getcolor(self):
+        return next(self.colors)
+
+    def buildblock(self, date):
+        block = list()
+        crit_indices = list()
+        for project in self.source:
+            if date not in project.records:
+                continue
+            hours = round(project.records[date])
+            crit_indices.append(len(block))
+            block.extend( self.buildblockstub(project.title, hours) )
+        length = len(block)
+        diff = 8 - length
+        if diff < 0:
+            spillover_indices = [i for i in range(length) not in crit_indices]
+            for index in spillover_indices[:diff:-1]:
+                block.pop(index)
+        elif diff > 0:
+            block.extend([FILL] * diff)
+        return block
+
+    def buildblockstub(self, name, hours):
+        color = self.getcolor()
+        project_stubs = [color + name.ljust(COLWIDTH) + colorutils.RESET]
+        spillover = ''.join([color, FILL, colorutils.RESET])
+        for _ in range(hours-1):
+            project_stubs.append(spillover)
+        return project_stubs
+
+# ^ Classes
+###############################################################################
+# v Main
+
 if __name__ == '__main__':
+    today = datetime.datetime.today()
+    lastweek = today - datetime.timedelta(days=7)
     P = ProjectSheet().readjson('work.json')
-    lastweek = datetime.datetime.today() - datetime.timedelta(days=7)
-    print('This past week you have worked', str(P.since(lastweek)[0]), 'hours!')
+    S = ProjectSheetScreen(P, today)
+    print(S)
+    print(S.build())
 
