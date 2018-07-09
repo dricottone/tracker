@@ -38,11 +38,6 @@ class Project:
         self.time = decimal.Decimal()
         self.records = dict()
 
-        self.url = ''
-        self.path = ''
-        self.archive = ''
-        self.datamap = 1
-        self.notes = ''
     def __iter__(self):
         return ProjectIterable(self)
     def __str__(self):
@@ -137,10 +132,6 @@ class ProjectSheet:
             j = json.load(f)
         for project in j.keys():
             self.create(project)
-            for attr in ('notes','url','path','archive','datamap'):
-                if attr in j[project]:
-                    setattr(self.sheet[project], attr, j[project][attr])
-                    j[project].pop(attr)
             for date in j[project]:
                 hours = decimal.Decimal(j[project][date])
                 self.sheet[project].add(hours, date)
@@ -153,8 +144,6 @@ class ProjectSheet:
         j = dict()
         for project in self:
             j[project.title] = dict()
-            for attr in ('notes','url','path','archive','datamap'):
-                j[project.title][attr] = getattr(project, attr)
             for date,hours in project:
                 j[project.title][date] = str(hours)
         return j
