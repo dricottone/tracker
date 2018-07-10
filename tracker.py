@@ -50,7 +50,7 @@ class Project:
         if date is None:
             date = getrecorddate()
         if 'date' in self.records:
-            self.records[date] += hours
+            self.records[date] += decimal.Decimal(hours)
         else:
             self.records[date] = decimal.Decimal(hours)
         self.time += hours
@@ -128,8 +128,11 @@ class ProjectSheet:
         """
         Imports projects and records from a JSON file.
         """
-        with open(filename, 'r') as f:
-            j = json.load(f)
+        try:
+            with open(filename, 'r') as f:
+                j = json.load(f)
+        except IOError:
+            return None
         for project in j.keys():
             self.create(project)
             for date in j[project]:
@@ -152,8 +155,12 @@ class ProjectSheet:
         """
         Exports projects and records to a JSON file.
         """
-        with open(filename, 'w') as f:
-            json.dump(self.tojson(), f, sort_keys=True)
+        try:
+            with open(filename, 'w') as f:
+                json.dump(self.tojson(), f, sort_keys=True)
+        except IOError:
+            return 1
+        return 0
 
 class ProjectSheetIterable:
     """
@@ -226,13 +233,53 @@ class ProjectSheetScreen:
 
 # ^ Classes
 ###############################################################################
-# v Main
+# v CLI
+
+def mainDisplay(projectsheet, weeksago):
+    today = datetime.datetime.today()
+    multiplier = weeksago * 7
+    someweeksago = today - datetime.timedelta(days=multiplier)
+    S = ProjectSheetScreen(projectsheet, today)
+    return (0, S.build())
+
+def mainCreate(projectsheet, projectname):
+    projectsheet.create(projectname)
+    result = projectsheet.writejson('work.json')
+    return (result, {0: '', 1: 'Error in file IO'}[result])
+    
+
+def mainAdd(projectsheet, projectname, hours, daysago):
+    today = datetime.datetime.today()
+    date = today - datetime.timedelta(days=daysago)
+    recorddate = getrecorddate(date)
+    if projectname not in projectsheet.sheet:
+        return (1, 'Project not in sheet') #otherwise will create project
+    projectsheet.sheet[projectname].add(hours, daysago)
+    return (0, '')
+
+def mainRemove(projectsheet, projectname, hours, daysago):
+    today = datetime.datetime.today()
+    date = today - datetime.timedelta(days=daysago)
+    recorddate = getrecorddate(date)
+    if projectname not in projectsheet.sheet:
+        return (1, 'Project not in sheet')
+    projectsheet.sheet[projectname].remove(hours, daysago)
+    return (0, '')
+
+mainfuncs = { 'display': mainDisplay,
+              'create': mainCreate,
+              'add': mainAdd,
+              'remove': mainRemove }
 
 if __name__ == '__main__':
-    today = datetime.datetime.today()
-    lastweek = today - datetime.timedelta(days=7)
     P = ProjectSheet().readjson('work.json')
-    S = ProjectSheetScreen(P, today)
-    print(S)
-    print(S.build())
+    if P is None:
+        result = (1, 'FATAL ERROR: Failed to open project sheet')
+    else:
+        func = sys.argv[1]
+        args = sys.argv[2:]
+        result = mainfuncs[func](P, *args)
+    if len(result[1]):
+        sys.stdout.write(result[1])
+    sys.exit(result[0])
 
