@@ -23,7 +23,7 @@ TRACKER_DISPLAY() {
     echo "Could not parse argument $1 (expected a number)"
     exit 1
   fi
-  python3 tracker.py display $1
+  tracker.py display $1
 }
 
 TRACKER_CREATE() {
@@ -34,7 +34,7 @@ TRACKER_CREATE() {
     echo "Could not parse argument $1 (expected a non-zero string)"
     exit 1
   fi
-  python3 tracker.py create $1
+  tracker.py create $1
 }
 
 TRACKER_ADD() {
@@ -51,7 +51,7 @@ TRACKER_ADD() {
     echo "Could not parse argument $3 (expected a number)"
     exit 1
   fi
-  python3 tracker.py add $1 $2 $3
+  tracker.py add $1 $2 $3
 }
 
 TRACKER_REMOVE() {
@@ -68,11 +68,11 @@ TRACKER_REMOVE() {
     echo "Could not parse argument $3 (expected a number)"
     exit 1
   fi
-  python3 tracker.py remove $1 $2 $3
+  tracker.py remove $1 $2 $3
 }
 
 TRACKER_INFO() {
-  python3 tracker.py info
+  tracker.py info
 }
 
 case $1 in
