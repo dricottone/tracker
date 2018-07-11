@@ -12,6 +12,7 @@ TRACKER_HELP() {
   echo "             Takes three arguments: The project name, how many hours, and what date (defaults to today)"
   echo "  remove  -> Remove time from a project"
   echo "             Takes three arguments: The project name, how many hours, and what date (defaults to today)"
+  echo "  info    -> Display debugging info"
 }
 
 TRACKER_DISPLAY() {
@@ -22,59 +23,64 @@ TRACKER_DISPLAY() {
     echo "Could not parse argument $1 (expected a number)"
     exit 1
   fi
-  tracker.py display $1
+  python3 tracker.py display $1
 }
 
 TRACKER_CREATE() {
   if [[ $# -lt 1 ]]; then
     echo "Invalid number of arguments (expected 1)"
     exit 2
-  elif [[ $1 -z ]]; then
+  elif [[ -z $1 ]]; then
     echo "Could not parse argument $1 (expected a non-zero string)"
     exit 1
   fi
-  tracker.py create $1
+  python3 tracker.py create $1
 }
 
 TRACKER_ADD() {
   if [[ $# -lt 2 ]]; then
     echo "Invalid number of arguments (expected 2)"
     exit 2
-  elif [[ $1 -z ]]; then
+  elif [[ -z $1 ]]; then
     echo "Could not parse argument $1 (expected a non-zero string)"
     exit 1
   elif [[ ! $2 =~ ^[0-9.]+$ ]]; then
     echo "Could not parse argument $2 (expected a number)"
     exit 1
-  elif [[ $# -ge 3 && ! $2 =~ ^[0-9.]+$ ]]; then
+  elif [[ $# -ge 3 && ! $3 =~ ^[0-9.]+$ ]]; then
     echo "Could not parse argument $3 (expected a number)"
     exit 1
   fi
-  tracker.py add $1 $2 $3
+  python3 tracker.py add $1 $2 $3
 }
 
 TRACKER_REMOVE() {
   if [[ $# -lt 2 ]]; then
     echo "Invalid number of arguments (expected 2)"
     exit 2
-  elif [[ $1 -z ]]; then
+  elif [[ -z $1 ]]; then
     echo "Could not parse argument $1 (expected a non-zero string)"
     exit 1
   elif [[ ! $2 =~ ^[0-9.]+$ ]]; then
     echo "Could not parse argument $2 (expected a number)"
     exit 1
-  elif [[ $# -ge 3 && ! $2 =~ ^[0-9.]+$ ]]; then
+  elif [[ $# -ge 3 && ! $3 =~ ^[0-9.]+$ ]]; then
     echo "Could not parse argument $3 (expected a number)"
     exit 1
   fi
-  tracker.py remove $1 $2 $3
+  python3 tracker.py remove $1 $2 $3
+}
+
+TRACKER_INFO() {
+  python3 tracker.py info
 }
 
 case $1 in
-  h?(elp)    ) TRACKER_HELP;;
-  d?(isplay) ) TRACKER_DISPLAY $2;;
-  c?(reate)  ) TRACKER_CREATE $2;;
-  a?(dd)     ) TRACKER_ADD $2 $3 ${4:-0}
-  r?(emove)  ) TRACKER_REMOVE $2 $3 ${4:-0}
+  h|help    ) TRACKER_HELP;;
+  d|display ) TRACKER_DISPLAY ${2:-0};;
+  c|create  ) TRACKER_CREATE $2;;
+  a|add     ) TRACKER_ADD $2 $3 ${4:-0};;
+  r|remove  ) TRACKER_REMOVE $2 $3 ${4:-0};;
+  i|info    ) TRACKER_INFO;;
 esac
 

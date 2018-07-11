@@ -1,6 +1,6 @@
 #!/usr/bin/python3
-import datetime, json, decimal, pprint
-import colorutils, dateutils
+import datetime, json, decimal, pprint, sys, os.path
+import colorutils, dateutils, dirutils
 
 COLWIDTH = 10
 FILL = ' ' * COLWIDTH
@@ -43,7 +43,7 @@ class Project:
     def __str__(self):
         return pprint.pformat(self.records)
 
-    def add(self, hours, date=None):
+    def add(self, hours, date=None, *, autowrite=False):
         """
         Adds a record with hours under date.
         """
@@ -53,14 +53,16 @@ class Project:
             self.records[date] += decimal.Decimal(hours)
         else:
             self.records[date] = decimal.Decimal(hours)
-        self.time += hours
+        self.time += decimal.Decimal(hours)
 
-    def remove(self, hours, date=None):
+    def remove(self, hours, date=None, *, autowrite=False):
         """
         Subtracts hours from a record.
         """
-        neghours = 0 - hours
-        self.add(neghours, date)
+        neghours = 0 - decimal.Decimal(hours)
+        self.add(neghours, date, autowrite=autowrite)
+        if self.records[date] <= 0:
+            self.records.pop(date)
 
     def since(self, date):
         """
@@ -91,19 +93,51 @@ class ProjectSheet:
     """
     Container for projects. Offers methods for operating on all projects.
     """
-    def __init__(self):
+    def __init__(self, filename=None):
+        self.filename = filename
         self.sheet = dict()
         self.index = 0
+
+        if self.filename is not None:
+            self.readjson(self.filename)
+
     def __iter__(self):
         return ProjectSheetIterable(self)
     def __str__(self):
         return '\n'.join([str(r) for r in self])
 
-    def create(self, name):
+    def create(self, name, *, autowrite=False):
         """
         Add a project under name to the sheet.
         """
         self.sheet[name] = Project(name)
+        if autowrite:
+            result = self.writejson(self.filename)
+        else:
+            result = 0
+        return result
+
+    def add(self, name, hours, date, *, autowrite=False):
+        """
+        Interface for Project.add
+        """
+        self.sheet[name].add(hours, date)
+        if autowrite:
+            result = self.writejson(self.filename)
+        else:
+            result = 0
+        return result
+
+    def remove(self, name, hours, date, *, autowrite=False):
+        """
+        Interface for Project.remove
+        """
+        self.sheet[name].remove(hours, date)
+        if autowrite:
+            result = self.writejson(self.filename)
+        else:
+            result = 0
+        return result
 
     def delete(self, name):
         """
@@ -199,7 +233,7 @@ class ProjectSheetScreen:
         buffer = ''.join(d.ljust(COLWIDTH) for d in dateutils.WEEKDAYS) + '\n'
         for line in zip(*self.blocks):
             buffer = ''.join([buffer, ''.join(line), '\n'])
-        return buffer
+        return '\n'.join([str(self), buffer])
 
     def getcolor(self):
         return next(self.colors)
@@ -216,8 +250,9 @@ class ProjectSheetScreen:
         length = len(block)
         diff = 8 - length
         if diff < 0:
-            spillover_indices = [i for i in range(length) not in crit_indices]
-            for index in spillover_indices[:diff:-1]:
+            noncrit_indices = set(range(length)) - set(crit_indices)
+            remove_indices = sorted(list(noncrit_indices), reverse=True)
+            for index in remove_indices[:-diff]:
                 block.pop(index)
         elif diff > 0:
             block.extend([FILL] * diff)
@@ -237,42 +272,45 @@ class ProjectSheetScreen:
 
 def mainDisplay(projectsheet, weeksago):
     today = datetime.datetime.today()
-    multiplier = weeksago * 7
+    multiplier = int(weeksago) * 7
     someweeksago = today - datetime.timedelta(days=multiplier)
-    S = ProjectSheetScreen(projectsheet, today)
+    S = ProjectSheetScreen(projectsheet, someweeksago)
     return (0, S.build())
 
 def mainCreate(projectsheet, projectname):
-    projectsheet.create(projectname)
-    result = projectsheet.writejson('work.json')
+    result = projectsheet.create(projectname, autowrite=True)
     return (result, {0: '', 1: 'Error in file IO'}[result])
-    
 
 def mainAdd(projectsheet, projectname, hours, daysago):
     today = datetime.datetime.today()
-    date = today - datetime.timedelta(days=daysago)
+    date = today - datetime.timedelta(days=int(daysago))
     recorddate = getrecorddate(date)
     if projectname not in projectsheet.sheet:
         return (1, 'Project not in sheet') #otherwise will create project
-    projectsheet.sheet[projectname].add(hours, daysago)
+    projectsheet.add(projectname, hours, recorddate, autowrite=True)
     return (0, '')
 
 def mainRemove(projectsheet, projectname, hours, daysago):
     today = datetime.datetime.today()
-    date = today - datetime.timedelta(days=daysago)
+    date = today - datetime.timedelta(days=int(daysago))
     recorddate = getrecorddate(date)
     if projectname not in projectsheet.sheet:
         return (1, 'Project not in sheet')
-    projectsheet.sheet[projectname].remove(hours, daysago)
+    projectsheet.remove(projectname, hours, recorddate, autowrite=True)
     return (0, '')
+
+def mainInfo(projectsheet):
+    return (0, 'Using data file at ' + P.filename)
 
 mainfuncs = { 'display': mainDisplay,
               'create': mainCreate,
               'add': mainAdd,
-              'remove': mainRemove }
+              'remove': mainRemove,
+              'info': mainInfo }
 
 if __name__ == '__main__':
-    P = ProjectSheet().readjson('work.json')
+    datafile = os.path.join(dirutils.findbasedir(), 'tracker', 'sheet.json')
+    P = ProjectSheet(datafile)
     if P is None:
         result = (1, 'FATAL ERROR: Failed to open project sheet')
     else:
@@ -280,6 +318,6 @@ if __name__ == '__main__':
         args = sys.argv[2:]
         result = mainfuncs[func](P, *args)
     if len(result[1]):
-        sys.stdout.write(result[1])
+        sys.stdout.write(result[1] + '\n')
     sys.exit(result[0])
 
