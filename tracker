@@ -14,6 +14,7 @@ TRACKER_HELP() {
   echo "             Takes three arguments: The project name, how many hours, and what date (defaults to today)"
   echo "  info    -> Display debugging info"
   echo "  list    -> Display all projects and total time"
+  echo "  search  -> Display projects that match a text pattern and their total time"
 }
 
 TRACKER_DISPLAY() {
@@ -77,9 +78,14 @@ TRACKER_INFO() {
 }
 
 TRACKER_LIST() {
-  tracker.py list
+  tracker.py list | column -t
 }
 
+TRACKER_SEARCH() {
+  tracker.py list | grep -e "$1"
+}
+
+BLANK=
 case $1 in
   h|help    ) TRACKER_HELP;;
   d|display ) TRACKER_DISPLAY ${2:-0};;
@@ -88,5 +94,6 @@ case $1 in
   r|remove  ) TRACKER_REMOVE $2 $3 ${4:-0};;
   i|info    ) TRACKER_INFO;;
   l|list    ) TRACKER_LIST;;
+  s|search  ) TRACKER_SEARCH $2;;
 esac
 
