@@ -13,6 +13,7 @@ TRACKER_HELP() {
   echo "  remove  -> Remove time from a project"
   echo "             Takes three arguments: The project name, how many hours, and what date (defaults to today)"
   echo "  info    -> Display debugging info"
+  echo "  list    -> Display all projects and total time"
 }
 
 TRACKER_DISPLAY() {
@@ -75,6 +76,10 @@ TRACKER_INFO() {
   tracker.py info
 }
 
+TRACKER_LIST() {
+  tracker.py list
+}
+
 case $1 in
   h|help    ) TRACKER_HELP;;
   d|display ) TRACKER_DISPLAY ${2:-0};;
@@ -82,5 +87,6 @@ case $1 in
   a|add     ) TRACKER_ADD $2 $3 ${4:-0};;
   r|remove  ) TRACKER_REMOVE $2 $3 ${4:-0};;
   i|info    ) TRACKER_INFO;;
+  l|list    ) TRACKER_LIST;;
 esac
 

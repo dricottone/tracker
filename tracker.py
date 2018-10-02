@@ -2,7 +2,7 @@
 import datetime, json, decimal, pprint, sys, os.path
 import colorutils, dateutils, dirutils
 
-COLWIDTH = 10
+COLWIDTH = 14
 FILL = ' ' * COLWIDTH
 
 # ^ Constants
@@ -49,7 +49,7 @@ class Project:
         """
         if date is None:
             date = getrecorddate()
-        if 'date' in self.records:
+        if date in self.records:
             self.records[date] += decimal.Decimal(hours)
         else:
             self.records[date] = decimal.Decimal(hours)
@@ -244,7 +244,7 @@ class ProjectSheetScreen:
         for project in self.source:
             if date not in project.records:
                 continue
-            hours = round(project.records[date])
+            hours = project.records[date]
             crit_indices.append(len(block))
             block.extend( self.buildblockstub(project.title, hours) )
         length = len(block)
@@ -260,9 +260,11 @@ class ProjectSheetScreen:
 
     def buildblockstub(self, name, hours):
         color = self.getcolor()
-        project_stubs = [color + name.ljust(COLWIDTH) + colorutils.RESET]
+        text = ' '.join([name, ':', str(hours)])
+        project_stubs = [color + text.ljust(COLWIDTH) + colorutils.RESET]
         spillover = ''.join([color, FILL, colorutils.RESET])
-        for _ in range(hours-1):
+        hoursleft = round(hours) - 1
+        for _ in range(hoursleft):
             project_stubs.append(spillover)
         return project_stubs
 
@@ -302,11 +304,20 @@ def mainRemove(projectsheet, projectname, hours, daysago):
 def mainInfo(projectsheet):
     return (0, 'Using data file at ' + P.filename)
 
-mainfuncs = { 'display': mainDisplay,
-              'create': mainCreate,
-              'add': mainAdd,
-              'remove': mainRemove,
-              'info': mainInfo }
+def mainList(projectsheet):
+    lines = list()
+    for project in projectsheet:
+        lines.append(project.title + '\t' + str(project.time))
+    buffer = '\n'.join(lines)
+    return (0, buffer)
+
+mainfuncs = {'display': mainDisplay,
+             'create': mainCreate,
+             'add': mainAdd,
+             'remove': mainRemove,
+             'info': mainInfo,
+             'list': mainList
+            }
 
 if __name__ == '__main__':
     datafile = os.path.join(dirutils.findbasedir(), 'tracker', 'sheet.json')
