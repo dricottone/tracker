@@ -23,9 +23,43 @@ def fromrecorddate(recorddate):
     """
     return datetime.datetime.strptime(recorddate, r'%y-%m-%d')
 
+def db_adapt_decimal(d):
+    return str(d)
+
+def db_convert_decimal(s):
+    return decimal.Decimal(s)
+
+def db_initialize(filename):
+	sqlite3.register_adapter(decimal.Decimal, db_adapt_decimal)
+	sqlite3.register_converter("decimal", convert_decimal)
+    connect = sqlite3.connect(filename, detect_types=sqlite3.PARSE_DECLTYPES)
+    cursor = connect.cursor()
+	return (connect, cursor)
+
+def db_create(filename):
+    connect, cursor = db_initialize(filename)
+    cursor.execute("""CREATE TABLE tracker
+                 (date text, name text, time decimal)""")
+    cursor.commit()
+    return (cunnect, cursor)
+
 # ^ Functions
 ###############################################################################
 # v Classes
+
+class TrackerDB():
+    def __init__(self, filename):
+        self.load_existing = False
+        if os.path.isfile(filename):
+            res = db_initialize(filename)
+        else:
+            res = db_create(filename)
+        self.connect, self.cursor = res
+    def __enter__(self):
+        return self.cursor
+    def __exit__(self):
+        self.cursor.close()
+        self.connect.close()
 
 class Project:
     """
