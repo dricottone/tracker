@@ -1,6 +1,10 @@
 #!/usr/bin/python3
-import datetime, json, decimal, pprint, sys, os.path
-import colorutils, dateutils, dirutils
+import sys, os.path
+import sqlite3
+import datetime     #for date data
+import decimal      #for hours data
+import json, pprint
+import colorutils, dateutils, dirutils, termutils
 
 COLWIDTH = 14
 FILL = ' ' * COLWIDTH
@@ -30,6 +34,9 @@ def db_convert_decimal(s):
     return decimal.Decimal(s)
 
 def db_initialize(filename):
+    """
+    Initializes database.
+    """
 	sqlite3.register_adapter(decimal.Decimal, db_adapt_decimal)
 	sqlite3.register_converter("decimal", convert_decimal)
     connect = sqlite3.connect(filename, detect_types=sqlite3.PARSE_DECLTYPES)
@@ -37,9 +44,12 @@ def db_initialize(filename):
 	return (connect, cursor)
 
 def db_create(filename):
+    """
+    Initializes database and calls CREATE TABLE.
+    """
     connect, cursor = db_initialize(filename)
     cursor.execute("""CREATE TABLE tracker
-                 (date text, name text, time decimal)""")
+                 (date text, name text, hours decimal)""")
     cursor.commit()
     return (cunnect, cursor)
 
@@ -354,15 +364,20 @@ mainfuncs = {'display': mainDisplay,
             }
 
 if __name__ == '__main__':
-    datafile = os.path.join(dirutils.findbasedir(), 'tracker', 'sheet.json')
-    P = ProjectSheet(datafile)
-    if P is None:
-        result = (1, 'FATAL ERROR: Failed to open project sheet')
-    else:
+    global EXITCODE
+    EXITCODE = 0
+    dbfile = os.path.join(dirutils.findbasedir(), 'tracker', 'sheet.json')
+    try:
         func = sys.argv[1]
         args = sys.argv[2:]
-        result = mainfuncs[func](P, *args)
-    if len(result[1]):
-        sys.stdout.write(result[1] + '\n')
-    sys.exit(result[0])
+    except KeyError:
+        termutils.errorp('Not a valid function: ', sys.argv[1])
+    try:
+        with TrackerDB(trackerdb) as tdb:
+            res = mainfuncs[func](tdb, *args)
+    except sqlite3.Error:
+        termutils.errorp('Internal database error')
+    if len(res):
+        sys.stdout.write(res + '\n')
+    sys.exit(EXITCODE)
 
