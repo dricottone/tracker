@@ -4,7 +4,7 @@ import sqlite3
 import datetime     #for date data
 import decimal      #for hours data
 import json, pprint
-import colorutils, dateutils, dirutils, termutils
+import colorutils, dateutils, dirutils, termutils, sqlutils
 
 COLWIDTH = 14
 FILL = ' ' * COLWIDTH
@@ -27,29 +27,13 @@ def fromrecorddate(recorddate):
     """
     return datetime.datetime.strptime(recorddate, r'%y-%m-%d')
 
-def db_adapt_decimal(d):
-    return str(d)
-
-def db_convert_decimal(s):
-    return decimal.Decimal(s)
-
-def db_initialize(filename):
-    """
-    Initializes database.
-    """
-	sqlite3.register_adapter(decimal.Decimal, db_adapt_decimal)
-	sqlite3.register_converter("decimal", convert_decimal)
-    connect = sqlite3.connect(filename, detect_types=sqlite3.PARSE_DECLTYPES)
-    cursor = connect.cursor()
-	return (connect, cursor)
-
 def db_create(filename):
     """
     Initializes database and calls CREATE TABLE.
     """
     connect, cursor = db_initialize(filename)
     cursor.execute("""CREATE TABLE tracker
-                 (date text, name text, hours decimal)""")
+                        (date text, name text, hours decimal)""")
     cursor.commit()
     return (cunnect, cursor)
 
@@ -71,6 +55,48 @@ class TrackerDB():
         self.cursor.close()
         self.connect.close()
 
+class TrackerInterface():
+    def __init__(self, cursor):
+        self.cursor = cursor
+        self.projects = list()
+        self.projects list_details(names=True, times=False)
+    def list_details(self, names=True, times=True):
+        self.cursor.execute("""SELECT name, SUM(time)
+                                 FROM tracker
+                                 GROUP BY name""")
+        _projects = self.cursor.fetchone()
+        #turn _projects to list, deleting indices based on kwargs
+        return projects
+
+    def search_details(self, pattern, names=True, times=True):
+        targets = list_details(self, names=names, times=times)
+        _pattern = re.compile(pattern)
+        _matches = filter(_pattern.search(), targets)
+        return _matches
+
+    def add_time(self, project, time, date):
+        #check that project exists
+        self.cursor.execute("""INSERT INTO tracker (date, name, hours)
+                                 VALUES (?,?,?)""", (date, project, time))
+        self.cursor.commit()
+
+    def remove_time(self, project, time, date):
+        #check that project exists
+        self.cursor.execute("""SELECT time FROM tracker
+                                 WHERE project=? AND date=?""", (project, date))
+        _time = self.cursor.fetchone()
+        if _time is None:
+            #couldn't find record?
+        if _time <= time:
+            self.cursor.execute("""DELETE FROM tracker
+                                     WHERE project=? AND date=?""", (project, date))
+            self.cursor.commit()
+        else:
+            self.cursor.execute("""UPDATE tracker
+                                     SET time=?
+                                     WHERE project=? AND date=?""", (_time - time, project, date))
+            self.cursor.commit()
+                                     
 class Project:
     """
     Class for a project. Contains all component data as attributes.
@@ -261,10 +287,10 @@ class ProjectSheetScreen:
     Class for building up a printable sheet.
     """
     def __init__(self, projectsheet, refdate):
-        self.week = dateutils.getweek(refdate)
+        self.week = tuple(dateutils.get_week(refdate))
         self.blocks = list()
         self.source = projectsheet
-        self.colors = colorutils.highlighter(colorutils.HIAA_BACK_BLACKFORE)
+        self.colors = colorutils.highlighter(colorutils.SET_HIAA)
     def __str__(self):
         return 'The week starting on {} {}:'.format( \
             dateutils.MONTHS_SHORT[self.week[0].month], self.week[0].day)
