@@ -1,99 +1,162 @@
-#!/bin/bash
+#!/usr/bin/env python3.7
 
-TRACKER_HELP() {
-  echo "tracker CMND ARGS"
-  echo "Available commands are:"
-  echo "  help    -> Display this text"
-  echo "  display -> Display the week"
-  echo "             Takes one argument for how many weeks ago (defaults to 0)"
-  echo "  create  -> Create a project"
-  echo "             Takes one argument for the project name"
-  echo "  add     -> Add time to a project"
-  echo "             Takes three arguments: The project name, how many hours, and what date (defaults to today)"
-  echo "  remove  -> Remove time from a project"
-  echo "             Takes three arguments: The project name, how many hours, and what date (defaults to today)"
-  echo "  info    -> Display debugging info"
-  echo "  list    -> Display all projects and total time"
-  echo "  search  -> Display projects that match a text pattern and their total time"
-}
+#stdlib
+import sys, os
+from decimal import Decimal
 
-TRACKER_DISPLAY() {
-  if [[ $# -lt 1 ]]; then
-    echo "Invalid number of arguments (expected 1)"
-    exit 2
-  elif [[ ! $1 =~ ^[0-9.]+$ ]]; then
-    echo "Could not parse argument $1 (expected a number)"
-    exit 1
-  fi
-  tracker.py display $1
-}
+#my libraries
+import sqlutils, dateutils, dirutils, colorutils, termutils
 
-TRACKER_CREATE() {
-  if [[ $# -lt 1 ]]; then
-    echo "Invalid number of arguments (expected 1)"
-    exit 2
-  elif [[ -z $1 ]]; then
-    echo "Could not parse argument $1 (expected a non-zero string)"
-    exit 1
-  fi
-  tracker.py create $1
-}
+##############################################################################
+# v constants
 
-TRACKER_ADD() {
-  if [[ $# -lt 2 ]]; then
-    echo "Invalid number of arguments (expected 2)"
-    exit 2
-  elif [[ -z $1 ]]; then
-    echo "Could not parse argument $1 (expected a non-zero string)"
-    exit 1
-  elif [[ ! $2 =~ ^[0-9.]+$ ]]; then
-    echo "Could not parse argument $2 (expected a number)"
-    exit 1
-  elif [[ $# -ge 3 && ! $3 =~ ^[0-9.]+$ ]]; then
-    echo "Could not parse argument $3 (expected a number)"
-    exit 1
-  fi
-  tracker.py add $1 $2 $3
-}
+COLWIDTH = 11
+HEADER = tuple(s.center(COLWIDTH) for s in ('Sunday','Monday','Tuesday',
+                                            'Wednesday','Thursday','Friday',
+                                            'Saturday'))
+dirutils.mkdir(dirutils.findbasedir(), 'tracker')
+DATABASE = os.path.join(dirutils.findbasedir(), 'tracker', 'time_tracking.db')
+COLORS = colorutils.SET_HIAA
+#sys.tracebacklimit = 0
 
-TRACKER_REMOVE() {
-  if [[ $# -lt 2 ]]; then
-    echo "Invalid number of arguments (expected 2)"
-    exit 2
-  elif [[ -z $1 ]]; then
-    echo "Could not parse argument $1 (expected a non-zero string)"
-    exit 1
-  elif [[ ! $2 =~ ^[0-9.]+$ ]]; then
-    echo "Could not parse argument $2 (expected a number)"
-    exit 1
-  elif [[ $# -ge 3 && ! $3 =~ ^[0-9.]+$ ]]; then
-    echo "Could not parse argument $3 (expected a number)"
-    exit 1
-  fi
-  tracker.py remove $1 $2 $3
-}
+# ^ constants
+##############################################################################
+# v utility functions
 
-TRACKER_INFO() {
-  tracker.py info
-}
+def validate_name(tbl, name, create=False):
+    res = tbl.select('project', distinct=True)
+    projects = [item[0] for item in res]
+    if name in projects:
+        return
+    elif create:
+        resp = input('No projects matching this name. Are you sure? (Y/n) ')
+        if resp[0] in ('Y','y'):
+            return
+    raise NameError('No projects matching this name.')
 
-TRACKER_LIST() {
-  tracker.py list | column -t
-}
+def build_where(date, name):
+    """
+    Given DATE and NAME, returns "date='DATE' AND project='NAME'"
+    """
+    return f"day='{date}' AND project='{name}'"
 
-TRACKER_SEARCH() {
-  tracker.py list | grep -e "$1"
-}
+def get_hours(tbl, date, name, return_value):
+    res = tbl.select('hours', where=build_where(date, name))
+    if res:
+        return res[0][0]
+    elif return_value is None:
+        raise NameError('No projects matching this name and date.')
+    else:
+        return return_value
 
-BLANK=
-case $1 in
-  h|help    ) TRACKER_HELP;;
-  d|display ) TRACKER_DISPLAY ${2:-0};;
-  c|create  ) TRACKER_CREATE $2;;
-  a|add     ) TRACKER_ADD $2 $3 ${4:-0};;
-  r|remove  ) TRACKER_REMOVE $2 $3 ${4:-0};;
-  i|info    ) TRACKER_INFO;;
-  l|list    ) TRACKER_LIST;;
-  s|search  ) TRACKER_SEARCH $2;;
-esac
+# ^ utility functions
+##############################################################################
+# v interface functions
+
+def add(tbl, name, hours, days_ago=0):
+    _date = str(dateutils.daysago(int(days_ago)))
+    validate_name(tbl, name, create=True)
+
+    _hours = get_hours(tbl, _date, name, 0)
+    if _hours:
+        _hours += Decimal(hours)
+        tbl.update({'hours': _hours}, where=build_where(_date, name))
+    else:
+        _hours = Decimal(hours)
+        tbl.insert({'day': _date, 'project': name, 'hours': _hours})
+
+def draw(tbl, weeks_ago=0):
+    data = list()
+    ref = dateutils.weeksago(int(weeks_ago))
+    for day in dateutils.get_week(ref):
+        daily_data = dict()
+        res = tbl.select(where=f"day='{str(day)}'")
+        for _,name,hours in res:
+            daily_data[name] = hours
+        data.append(daily_data)
+
+    colors = colorutils.highlighter(COLORS)
+    sys.stdout.write(f"Week of {ref}\n")
+    res = termutils.build_stacks(data, colors=colors, delimiter=' ',
+                                 label='both', width=COLWIDTH, header=HEADER)
+    sys.stdout.write(res)
+
+def remove(tbl, name, hours, days_ago=0):
+    _date = str(dateutils.daysago(days_ago))
+    validate_name(tbl, name)
+
+    _hours = get_hours(tbl, _date, name, None) - Decimal(hours)
+    if _hours <= 0:
+        tbl.delete(build_where(_date, name))
+    else:
+        tbl.update({'hours': _hours}, where=build_where(_date, name))
+
+def show(tbl, name_like=''):
+    if name_like:
+        _where = f"project LIKE '%{name_like}%'"
+        res = tbl.select('project', 'SUM(CAST(hours as REAL))',
+                         groupby='project', where=_where)
+    else:
+        res = tbl.select('project', 'SUM(CAST(hours as REAL))',
+                         groupby='project')
+    _rows = (f'{name} - {str(hours)}' for name, hours in res)
+    _cols = termutils.cols(_rows, delimiter='  ')
+    sys.stdout.write(_cols)
+
+# ^ interface functions
+##############################################################################
+# v internal functions
+
+def create_local(filename):
+    with sqlutils.open_db(filename, with_decimals=True) as db:
+        records = db.create('Time_Tracking', 'day DATE', 'project TEXT',
+                            'hours DECIMAL')
+
+def help():
+    sys.stdout.write( "tracker - It's a time tracker\n"
+                      "=============================\n"
+                      "Usage:    tracker COMMAND [ARGS]\n"
+                      "Commands:\n"
+                      " help                             "
+                      " Display this text\n"
+                      " display [WEEKSAGO]               "
+                      " Display a week of tracked time\n"
+                      " add PROJECT HOURS [DAYSAGO]      "
+                      " Add time to a project on a day\n"
+                      " remove PROJECT HOURS [DAYSAGO]   "
+                      " Remove time from project on a day\n"
+                      " list [PATTERN]                   "
+                      " List projects and time tracked on them\n" )
+    sys.exit(0)
+
+def dispatch():
+    if not len(sys.argv[1:]):
+        help()
+
+    funcname = sys.argv[1].lstrip('-')
+    if funcname in ('h', 'help'):
+        help()
+    elif funcname in ('l', 'list'):
+        return show
+    elif funcname in ('a', 'add'):
+        return add
+    elif funcname in ('r', 'remove'):
+        return remove
+    elif funcname in ('d', 'display'):
+        return draw
+    raise NameError(f'{funcname} is not a valid command.')
+
+if __name__ == '__main__':
+    func = dispatch()
+
+    if not dirutils.exists(DATABASE):
+        create_local(DATABASE)
+
+    with sqlutils.open_db(DATABASE, with_decimals=True) as db:
+        tbl = db.get('Time_Tracking')
+        try:
+            args = [tbl] + sys.argv[2:]
+        except:
+            args = [tbl]
+        func(*args)
 
