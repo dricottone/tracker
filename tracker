@@ -17,7 +17,7 @@ HEADER = tuple(s.center(COLWIDTH) for s in ('Sunday','Monday','Tuesday',
 dirutils.mkdir(dirutils.findbasedir(), 'tracker')
 DATABASE = os.path.join(dirutils.findbasedir(), 'tracker', 'time_tracking.db')
 COLORS = colorutils.SET_HIAA
-#sys.tracebacklimit = 0
+sys.tracebacklimit = 0
 
 # ^ constants
 ##############################################################################
