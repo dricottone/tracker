@@ -100,7 +100,7 @@ def show(tbl, name_like=''):
         res = tbl.select('project', 'SUM(CAST(hours as REAL))',
                          groupby='project')
     _rows = (f'{name} - {str(hours)}' for name, hours in res)
-    _cols = termutils.cols(_rows, delimiter='  ')
+    _cols = termutils.listing(_rows, delimiter='  ')
     sys.stdout.write(_cols)
 
 # ^ interface functions
