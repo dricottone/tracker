@@ -5,7 +5,7 @@ import sys, os
 from decimal import Decimal
 
 #my libraries
-import sqlutils, dateutils, dirutils, colorutils, termutils
+import sqlutils, dateutils, fsutils, colorutils, termutils
 
 ##############################################################################
 # v constants
