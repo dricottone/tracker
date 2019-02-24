@@ -1,7 +1,7 @@
 #!/usr/bin/env python3.7
 
 #stdlib
-import sys, os
+import sys
 from decimal import Decimal
 
 #my libraries
@@ -14,8 +14,8 @@ COLWIDTH = 11
 HEADER = tuple(s.center(COLWIDTH) for s in ('Sunday','Monday','Tuesday',
                                             'Wednesday','Thursday','Friday',
                                             'Saturday'))
-dirutils.mkdir(dirutils.findbasedir(), 'tracker')
-DATABASE = os.path.join(dirutils.findbasedir(), 'tracker', 'time_tracking.db')
+fsutils.mkdir('tracker', conf_dir=True)
+DATABASE = fsutils.confname('tracker', 'time_tracking.db')
 COLORS = colorutils.SET_HIAA
 sys.tracebacklimit = 0
 
@@ -149,7 +149,7 @@ def dispatch():
 if __name__ == '__main__':
     func = dispatch()
 
-    if not dirutils.exists(DATABASE):
+    if not fsutils.exists(DATABASE):
         create_local(DATABASE)
 
     with sqlutils.open_db(DATABASE, with_decimals=True) as db:
